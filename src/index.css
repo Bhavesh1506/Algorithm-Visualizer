@@ -1,0 +1,57 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: #0f0f0f;
+  color: #f3f4f6;
+}
+
+@keyframes visitedFadeIn {
+  from {
+    transform: scale(0.85);
+    opacity: 0.35;
+    background-color: #1e293b;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    background-color: #3b82f6;
+  }
+}
+
+@keyframes pathReveal {
+  from {
+    transform: scale(0.9);
+    opacity: 0.5;
+    background-color: #f59e0b;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+    background-color: #facc15;
+  }
+}
+
+.pathfinding-cell {
+  animation-duration: 220ms;
+  animation-timing-function: ease-out;
+  animation-fill-mode: forwards;
+}
+
+.pathfinding-cell--visited {
+  animation-name: visitedFadeIn;
+  background-color: #3b82f6;
+}
+
+.pathfinding-cell--path {
+  animation-name: pathReveal;
+  background-color: #facc15;
+}
