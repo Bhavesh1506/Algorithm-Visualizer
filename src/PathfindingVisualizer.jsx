@@ -20,6 +20,17 @@ const createGrid = () =>
     }))
   );
 
+const createWallGrid = () =>
+  Array.from({ length: PATH_ROWS }, (_, row) =>
+    Array.from({ length: PATH_COLS }, (_, col) => ({
+      row,
+      col,
+      isWall: true,
+      isWeight: false,
+      state: "idle",
+    }))
+  );
+
 const isInsideGrid = (row, col) =>
   row >= 0 && row < PATH_ROWS && col >= 0 && col < PATH_COLS;
 
@@ -48,6 +59,21 @@ const reconstructPath = (parents, endKey, startKey) => {
 const movementCost = (cell) => (cell.isWeight ? 5 : 1);
 const hasWeightedNodes = (grid) => grid.some((row) => row.some((cell) => cell.isWeight));
 const manhattan = (a, b) => Math.abs(a.row - b.row) + Math.abs(a.col - b.col);
+const toOddCell = (value, max) => {
+  const clamped = Math.min(max - 2, Math.max(1, value));
+  return clamped % 2 === 0 ? clamped - 1 : clamped;
+};
+
+const findOpenCellInRegion = (grid, rowStart, rowEnd, colStart, colEnd, fallback) => {
+  for (let row = rowStart; row <= rowEnd; row += 1) {
+    for (let col = colStart; col <= colEnd; col += 1) {
+      if (!grid[row][col].isWall) return { row, col };
+    }
+  }
+  return fallback;
+};
+
+const cloneGrid = (grid) => grid.map((line) => line.map((cell) => ({ ...cell })));
 
 function runBfs(grid, start, end) {
   const startKey = toCellKey(start.row, start.col);
@@ -171,6 +197,7 @@ export default function PathfindingVisualizer() {
   const [algorithm, setAlgorithm] = useState("BFS");
   const [speed, setSpeed] = useState(45);
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isGeneratingMaze, setIsGeneratingMaze] = useState(false);
   const [weightedPaintMode, setWeightedPaintMode] = useState(false);
   const [start, setStart] = useState(PATH_START_DEFAULT);
   const [end, setEnd] = useState(PATH_END_DEFAULT);
@@ -185,6 +212,7 @@ export default function PathfindingVisualizer() {
   const runIdRef = useRef(0);
   const canUseWeights = algorithm === "Dijkstra" || algorithm === "A*";
   const animationDelay = useMemo(() => Math.max(8, 200 - speed * 2), [speed]);
+  const controlsLocked = isAnimating || isGeneratingMaze;
 
   useEffect(() => {
     if (!canUseWeights) setWeightedPaintMode(false);
@@ -234,6 +262,109 @@ export default function PathfindingVisualizer() {
     });
   };
 
+  const flashCarvedCell = async (localGrid, row, col) => {
+    localGrid[row][col] = {
+      ...localGrid[row][col],
+      isWall: false,
+      isWeight: false,
+      state: "carving",
+    };
+    setGrid(cloneGrid(localGrid));
+    await delay(animationDelay);
+    localGrid[row][col] = { ...localGrid[row][col], state: "idle" };
+    setGrid(cloneGrid(localGrid));
+  };
+
+  const generateMaze = async () => {
+    if (controlsLocked) return;
+
+    runIdRef.current += 1;
+    setIsAnimating(false);
+    setIsGeneratingMaze(true);
+    setWeightedPaintMode(false);
+    setMouseAction(null);
+    setStats({ nodesVisited: 0, pathLength: 0, timeTakenMs: 0, found: false });
+
+    const localGrid = createWallGrid();
+    setGrid(cloneGrid(localGrid));
+
+    const mazeStart = {
+      row: toOddCell(start.row, PATH_ROWS),
+      col: toOddCell(start.col, PATH_COLS),
+    };
+
+    const stack = [mazeStart];
+    const visited = new Set([toCellKey(mazeStart.row, mazeStart.col)]);
+    await flashCarvedCell(localGrid, mazeStart.row, mazeStart.col);
+
+    const directions = [
+      [-2, 0],
+      [2, 0],
+      [0, -2],
+      [0, 2],
+    ];
+
+    while (stack.length) {
+      const current = stack[stack.length - 1];
+      const candidates = [];
+
+      for (const [dr, dc] of directions) {
+        const nextRow = current.row + dr;
+        const nextCol = current.col + dc;
+        if (!isInsideGrid(nextRow, nextCol)) continue;
+        if (nextRow <= 0 || nextRow >= PATH_ROWS - 1 || nextCol <= 0 || nextCol >= PATH_COLS - 1) {
+          continue;
+        }
+        const key = toCellKey(nextRow, nextCol);
+        if (!visited.has(key)) {
+          candidates.push({ nextRow, nextCol, betweenRow: current.row + dr / 2, betweenCol: current.col + dc / 2 });
+        }
+      }
+
+      if (!candidates.length) {
+        stack.pop();
+        continue;
+      }
+
+      const chosen = candidates[Math.floor(Math.random() * candidates.length)];
+      visited.add(toCellKey(chosen.nextRow, chosen.nextCol));
+
+      await flashCarvedCell(localGrid, chosen.betweenRow, chosen.betweenCol);
+      await flashCarvedCell(localGrid, chosen.nextRow, chosen.nextCol);
+
+      stack.push({ row: chosen.nextRow, col: chosen.nextCol });
+    }
+
+    const topLeftFallback = { row: 1, col: 1 };
+    const bottomRightFallback = { row: PATH_ROWS - 2, col: PATH_COLS - 2 };
+    const nextStart = findOpenCellInRegion(
+      localGrid,
+      0,
+      Math.floor(PATH_ROWS / 2),
+      0,
+      Math.floor(PATH_COLS / 2),
+      topLeftFallback
+    );
+    const nextEnd = findOpenCellInRegion(
+      localGrid,
+      Math.floor(PATH_ROWS / 2),
+      PATH_ROWS - 1,
+      Math.floor(PATH_COLS / 2),
+      PATH_COLS - 1,
+      bottomRightFallback
+    );
+    const safeEnd =
+      nextEnd.row === nextStart.row && nextEnd.col === nextStart.col
+        ? findOpenCellInRegion(localGrid, 0, PATH_ROWS - 1, 0, PATH_COLS - 1, bottomRightFallback)
+        : nextEnd;
+
+    setStart(nextStart);
+    setEnd(safeEnd);
+    setGrid(cloneGrid(localGrid));
+
+    setIsGeneratingMaze(false);
+  };
+
   const moveSpecialNode = (type, row, col) => {
     if (type === "start") {
       if (row === end.row && col === end.col) return;
@@ -257,7 +388,7 @@ export default function PathfindingVisualizer() {
   };
 
   const onCellMouseDown = (row, col) => {
-    if (isAnimating) return;
+    if (controlsLocked) return;
     clearSearchVisualsOnly();
     if (row === start.row && col === start.col) return setMouseAction("moveStart");
     if (row === end.row && col === end.col) return setMouseAction("moveEnd");
@@ -273,7 +404,7 @@ export default function PathfindingVisualizer() {
   };
 
   const onCellMouseEnter = (row, col) => {
-    if (isAnimating || !mouseAction) return;
+    if (controlsLocked || !mouseAction) return;
     if (mouseAction === "moveStart") return moveSpecialNode("start", row, col);
     if (mouseAction === "moveEnd") return moveSpecialNode("end", row, col);
     paintCell(row, col, mouseAction);
@@ -306,7 +437,7 @@ export default function PathfindingVisualizer() {
   };
 
   const visualize = async () => {
-    if (isAnimating) return;
+    if (controlsLocked) return;
     clearBoard();
     const runId = runIdRef.current + 1;
     runIdRef.current = runId;
@@ -327,6 +458,7 @@ export default function PathfindingVisualizer() {
   const getCellClass = (cell, row, col) => {
     if (row === start.row && col === start.col) return "bg-green-500";
     if (row === end.row && col === end.col) return "bg-red-500";
+    if (cell.state === "carving") return "pathfinding-cell pathfinding-cell--carving";
     if (cell.isWall) return "bg-[#050505]";
     if (cell.state === "path") return "pathfinding-cell pathfinding-cell--path";
     if (cell.state === "visited") return "pathfinding-cell pathfinding-cell--visited";
@@ -351,7 +483,7 @@ export default function PathfindingVisualizer() {
               value={algorithm}
               onChange={(e) => setAlgorithm(e.target.value)}
               className="rounded-lg border border-zinc-700 bg-zinc-950 px-3 py-2 outline-none transition focus:border-zinc-500"
-              disabled={isAnimating}
+              disabled={controlsLocked}
             >
               {PATH_ALGORITHMS.map((name) => (
                 <option key={name} value={name}>
@@ -371,7 +503,7 @@ export default function PathfindingVisualizer() {
               value={speed}
               onChange={(e) => setSpeed(Number(e.target.value))}
               className="accent-blue-500"
-              disabled={isAnimating}
+              disabled={controlsLocked}
             />
           </label>
 
@@ -379,7 +511,7 @@ export default function PathfindingVisualizer() {
             <button
               type="button"
               onClick={() => setWeightedPaintMode((prev) => !prev)}
-              disabled={!canUseWeights || isAnimating}
+              disabled={!canUseWeights || controlsLocked}
               className={`rounded-md px-3 py-1.5 font-medium transition ${
                 weightedPaintMode
                   ? "bg-orange-500 text-zinc-950 hover:bg-orange-400"
@@ -399,8 +531,16 @@ export default function PathfindingVisualizer() {
         <div className="mt-4 flex flex-wrap gap-3">
           <button
             type="button"
+            onClick={generateMaze}
+            disabled={controlsLocked}
+            className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isGeneratingMaze ? "Generating Maze..." : "Generate Maze"}
+          </button>
+          <button
+            type="button"
             onClick={visualize}
-            disabled={isAnimating}
+            disabled={controlsLocked}
             className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Visualize
@@ -408,7 +548,7 @@ export default function PathfindingVisualizer() {
           <button
             type="button"
             onClick={clearBoard}
-            disabled={isAnimating}
+            disabled={controlsLocked}
             className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium transition hover:bg-zinc-700 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Clear Board
@@ -416,7 +556,7 @@ export default function PathfindingVisualizer() {
           <button
             type="button"
             onClick={resetBoard}
-            disabled={isAnimating}
+            disabled={controlsLocked}
             className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-medium transition hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Reset Board
