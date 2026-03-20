@@ -7,6 +7,7 @@
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)
 ![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-000000?style=for-the-badge&logo=vercel)
 
+Live Demo - https://algocanvas-dev.vercel.app/ 
 An interactive educational tool that brings algorithms to life through smooth, real-time animation.
 
 ## ✨ Features
