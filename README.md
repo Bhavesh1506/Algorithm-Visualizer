@@ -11,6 +11,14 @@ Live Demo - https://algocanvas-dev.vercel.app/
 
 An interactive educational tool that brings algorithms to life through smooth, real-time animation.
 
+## 📸 Screenshots
+
+<img width="1920" height="1080" alt="Screenshot (669)" src="https://github.com/user-attachments/assets/29d8a0f2-d8a6-486e-9d3c-c7cb9c6d84c7" />
+
+<img width="1920" height="1080" alt="Screenshot (670)" src="https://github.com/user-attachments/assets/a96e00c9-893c-436e-9fe1-844a26fb5734" />
+
+<img width="1920" height="1080" alt="Screenshot (671)" src="https://github.com/user-attachments/assets/7562d6cb-3f02-484a-80a9-097a4109a971" />
+
 ## ✨ Features
 
 ### 📊 Sorting Visualizer
@@ -74,19 +82,6 @@ cd algorithm-visualizer
 npm install
 npm run dev
 ```
-
-## 📸 Screenshots
-
-[Add screenshots here]
-
-## 🗺 Roadmap
-- Add more sorting algorithms (Heap Sort, Radix Sort, Shell Sort)
-- Add more pathfinding algorithms (Bidirectional BFS)
-- Improve mobile touch interactions
-
-## 🤝 Contributing
-
-Contributions are welcome. Feel free to open an issue for ideas, bug reports, or feature requests, and submit a pull request when you're ready.
 
 ## 📄 License
 
